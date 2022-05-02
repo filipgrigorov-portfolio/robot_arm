@@ -1,5 +1,8 @@
 import numpy as np
 
+def degrees2rad(degrees):
+    return np.pi * degrees / 180.0
+
 def rad2degrees(rad):
     return 180.0 * rad / np.pi
 
