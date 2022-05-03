@@ -12,21 +12,7 @@ class NewtonSolver2D3L:
 
         self.J = self.compute_Jacobian(thetas, links)
 
-        print(self.J)
-
-        return self        
-
-    '''
-    def compute_Jacobian(self, thetas, links):
-        # len(links) x len(jnts)
-        J = np.zeros(shape=(len(links), len(thetas))).astype(np.float32)
-        indices = np.array(np.linspace(0, len(thetas) - 1, len(thetas))).astype(int)
-        for row in range(len(links)):
-            func = np.cos if row % 2 == 0 else -np.sin
-            for col in range(len(thetas)):
-                J[row][col] = (links[indices[col :]] * func(thetas[indices[col :]])).sum()
-        return J
-    '''
+        return self
 
     def compute_Jacobian(self, thetas, links):
         dpx_dth1 = links[0] * np.cos(thetas[0])
@@ -46,22 +32,38 @@ class NewtonSolver2D3L:
         # dth = J.inv*dp
         jnts = self._FK(thetas, links)
         trajectory.append(jnts)
-        while np.abs(np.linalg.norm(jnts[-1] - target)) < EPS:
-            # compute svd of J
-            
-            # deduce pseudo inverse from svd
-            # compute the theta deltas
-            # apply theta deltas to thetas
-            # compute the jnts coords with the new thetas
+        dp = jnts[-1] - target
+        while np.abs(np.linalg.norm(dp)) < EPS:
+            # Note: Can use np.linalg.pinv(self.J)
+            JInv = self._pinv()
+            dth = JInv.dot(dp)
+            thetas += dth
             jnts = self._FK(thetas, links)
             trajectory.append(jnts)
 
     def _FK(self, thetas, links):
         p0 = links[0]
-        p1 = p0 + np.array([ links[0] * np.sin(thetas[0]), links[0] * np.cos(thetas[0]) ])
-        p2 = p1 + np.array([ links[1] * np.sin(thetas[0] + thetas[1]), links[1] * np.cos(thetas[0] + thetas[1]) ])
-        p3 = p1 + p2 + np.array([ links[2] * np.sin(thetas[0] + thetas[1] + thetas[2]), links[2] * np.cos(thetas[0] + thetas[1] + thetas[2]) ])
+        p1 = p0 + np.array([ 
+            links[0] * np.sin(thetas[0]), 
+            links[0] * np.cos(thetas[0]) 
+        ])
+        p2 = p1 + np.array([ 
+            links[1] * np.sin(thetas[0] + thetas[1]), 
+            links[1] * np.cos(thetas[0] + thetas[1]) 
+        ])
+        p3 = p1 + p2 + np.array([ 
+            links[2] * np.sin(thetas[0] + thetas[1] + thetas[2]), 
+            links[2] * np.cos(thetas[0] + thetas[1] + thetas[2]) 
+        ])
         return np.array([ p0, p1, p2, p3 ])
+
+    def _pinv(self):
+        u, s, vh = np.linalg.svd(self.J)
+        uInv = u.T
+        sInv = np.zeros_like(self.J)
+        np.fill_diagonal(sInv, np.where(s > 0, 1.0 / s, s))
+        vhInv = vh.T
+        return vhInv.dot(sInv.T.dot(uInv))
 
 if __name__ == '__main__':
     links = np.array([3, 3, 3]).astype(np.float32)
