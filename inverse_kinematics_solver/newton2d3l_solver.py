@@ -12,8 +12,6 @@ class NewtonSolver2D3L:
 
         self.J = self.compute_Jacobian(thetas, links)
 
-        return self
-
     def compute_Jacobian(self, thetas, links):
         dpx_dth1 = links[0] * np.cos(thetas[0])
         dpx_dth2 = links[0] * np.cos(thetas[0]) + links[1] * np.cos(thetas[0] + thetas[1])
@@ -33,16 +31,19 @@ class NewtonSolver2D3L:
         jnts = self._FK(thetas, links)
         trajectory.append(jnts)
         dp = jnts[-1] - target
-        while np.abs(np.linalg.norm(dp)) < EPS:
+        while np.abs(np.linalg.norm(dp)) > EPS:
             # Note: Can use np.linalg.pinv(self.J)
             JInv = self._pinv()
             dth = JInv.dot(dp)
             thetas += dth
+            self.J = self.compute_Jacobian(thetas, links)
             jnts = self._FK(thetas, links)
             trajectory.append(jnts)
+            dp = jnts[-1] - target
+        return np.array(trajectory)
 
-    def _FK(self, thetas, links):
-        p0 = links[0]
+    def _FK(self, thetas, links, jnts):
+        p0 = jnts[0]
         p1 = p0 + np.array([ 
             links[0] * np.sin(thetas[0]), 
             links[0] * np.cos(thetas[0]) 
@@ -67,6 +68,9 @@ class NewtonSolver2D3L:
 
 if __name__ == '__main__':
     links = np.array([3, 3, 3]).astype(np.float32)
-    thetas = np.array([90.0, 90.0, 90.0]).astype(np.float32)
-    thetas = degrees2rad(thetas)
-    print(NewtonSolver2D3L(thetas, links).compute_Jacobian(thetas, links))
+    jnts = np.array([[1, 1], [1, 4], [1, 7], [1, 10]]).astype(np.float32)
+    thetas = degrees2rad(np.array([90.0, 90.0, 90.0]))
+    
+    solver = NewtonSolver2D3L(thetas, links)
+    print(solver._FK(thetas + degrees2rad(20), links, jnts))
+    print(solver._pinv())
