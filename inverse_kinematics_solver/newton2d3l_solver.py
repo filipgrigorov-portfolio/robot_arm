@@ -1,7 +1,7 @@
 import numpy as np
 from utils import degrees2rad
 
-EPS = 1e-2
+EPS = 1e-1
 
 class NewtonSolver2D3L:
     def __init__(self, thetas, links):
@@ -26,20 +26,23 @@ class NewtonSolver2D3L:
             [dpy_dth1, dpy_dth2, dpy_dth3]
         ]).astype(np.float32)
 
-    def solve(self, target, trajectory, thetas, links):
+    def solve(self, target, trajectory, thetas, links, jnts):
         # dth = J.inv*dp
-        jnts = self._FK(thetas, links)
+        jnts = self._FK(thetas, links, jnts)
         trajectory.append(jnts)
         dp = jnts[-1] - target
-        while np.abs(np.linalg.norm(dp)) > EPS:
+        dist = np.abs(np.linalg.norm(dp))
+        while dist > EPS:
             # Note: Can use np.linalg.pinv(self.J)
             JInv = self._pinv()
             dth = JInv.dot(dp)
             thetas += dth
             self.J = self.compute_Jacobian(thetas, links)
-            jnts = self._FK(thetas, links)
+            jnts = self._FK(thetas, links, jnts)
             trajectory.append(jnts)
             dp = jnts[-1] - target
+            dist = np.abs(np.linalg.norm(dp))
+            print(f'\rLoss: {dist}', end='')
         return np.array(trajectory)
 
     def _FK(self, thetas, links, jnts):
@@ -52,7 +55,7 @@ class NewtonSolver2D3L:
             links[1] * np.sin(thetas[0] + thetas[1]), 
             links[1] * np.cos(thetas[0] + thetas[1]) 
         ])
-        p3 = p1 + p2 + np.array([ 
+        p3 = p2 + np.array([ 
             links[2] * np.sin(thetas[0] + thetas[1] + thetas[2]), 
             links[2] * np.cos(thetas[0] + thetas[1] + thetas[2]) 
         ])
@@ -69,8 +72,12 @@ class NewtonSolver2D3L:
 if __name__ == '__main__':
     links = np.array([3, 3, 3]).astype(np.float32)
     jnts = np.array([[1, 1], [1, 4], [1, 7], [1, 10]]).astype(np.float32)
-    thetas = degrees2rad(np.array([90.0, 90.0, 90.0]))
+    thetas = degrees2rad(np.array([0.0, 0.0, 0.0]))
+
+    trajectory = [ np.copy(jnts) ]
+    target = np.array([4, 4])
     
     solver = NewtonSolver2D3L(thetas, links)
-    print(solver._FK(thetas + degrees2rad(20), links, jnts))
-    print(solver._pinv())
+    trajectory = solver.solve(target, trajectory, thetas, links, jnts)
+
+    print(trajectory)
